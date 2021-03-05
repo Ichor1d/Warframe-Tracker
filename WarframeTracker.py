@@ -2,7 +2,6 @@
 # Also make specific send-functions in order to allow functions to be only the function itself - not the
 # one sending the message. Also this might help reduce code.
 # Also: Clean up the mess. Sort functions by what they do and what they are needed for
-# Change checks to be only started by "Admins"
 
 import discord
 import asyncio
@@ -21,6 +20,7 @@ bot = commands.Bot(command_prefix='$', intents=intents)
 bot.remove_command("help")
 
 servers = {}
+embeds = {}
 helpEmbed = discord.Embed()
 
 # nested_eidolon_users = {ctx.guild.id_1 : { user.id_1: {USER}, ... }, ... }
@@ -43,8 +43,28 @@ class VariablesForChecks:
         self.eidolon_check_started = False
         self.invasions_check_started = False
 
+class InvasionEmbeds:
+    def __init__(self):
+        self.inv_embed = discord.Embed()
+        self.new_embed = discord.Embed()
+        self.detonite_embed = discord.Embed()
+        self.fieldron_embed = discord.Embed()
+        self.mutagen_embed = discord.Embed()
+        self.potato_embed = discord.Embed()
+        self.weapon_embed = discord.Embed()
+        self.nav_embed = discord.Embed()
 
-# TODO: Write a function for people to sign up to specific whispering.
+    def clear_all(self):
+        self.inv_embed = discord.Embed()
+        self.new_embed = discord.Embed()
+        self.detonite_embed = discord.Embed()
+        self.fieldron_embed = discord.Embed()
+        self.mutagen_embed = discord.Embed()
+        self.potato_embed = discord.Embed()
+        self.weapon_embed = discord.Embed()
+        self.nav_embed = discord.Embed()
+
+
 async def whisper_invasion_subscribers(ctx: commands.context, message: str = "", embed: discord.embeds = None):
     guild = ctx.guild.id
     if guild in nested_invasion_users:
@@ -69,16 +89,15 @@ async def whisper_fissure_subscribers(ctx: commands.context, message: str = "", 
     pass
 
 
-# TODO: Write a function to whisper members with a specific role and only if they want to!
-async def whisper_specific_members(ctx: commands.context, specific_role: str, message="", embed=None):
-    tmp = [member for member in ctx.guild.members if
-           discord.utils.get(ctx.guild.roles, name=specific_role) in member.roles]
-    for member in tmp:
-        if member != bot.user:
-            if embed is None:
-                await member.send(message)
-            elif message is "":
-                await member.send(embed=embed)
+async def whisper_specific_members(ctx: commands.context, role: str, message="", embed=None):
+    guild = ctx.guild.id
+    if guild in nested_invasion_users:
+        if role in nested_invasion_users[guild]:
+            for member in nested_invasion_users[guild][role]:
+                if embed is None:
+                    await member.send(message)
+                elif message is "":
+                    await member.send(embed=embed)
 
 
 async def create_fissure_embed(ctx: commands.context, tier: str, node: str, mission: str):
@@ -168,83 +187,140 @@ async def fissure_check(ctx: commands.context):
             await asyncio.sleep(60)
 
 
-@bot.command(pass_context=True)
-async def invasion_status(ctx):
-    invasions = await get_all_data("invasions")
-
-    for invasion in invasions:
-        if not invasion['completed'] and invasion['eta'] != 'Infinityd':
-            teststr = f"{invasion['node']}\n"
-            com = int(invasion['completion'])
-            com = com/2
-            for i in range(int(com)):
-                teststr += "0"
-            teststr += " "
-            for i in range(int(com), 49):
-                teststr += "O"
-            teststr += "]"
-            await ctx.send("```ml\n" + teststr + "```")
-
-
 async def invasions_check(ctx: commands.context):
     old = []
+    message = None
+    all_embeds = embeds[ctx.guild.id]
     # look for the channel "invasions" otherwise use the channel, where the command has been set up
     correct_channel = ctx.channel
     for channel in ctx.guild.channels:
-        if channel.name == "invasions":
+        if channel.name == "botspam_private":
             correct_channel = channel
+
     if servers[ctx.guild.id].invasions_check_started:
         print(f"Invasion Check started for {ctx.guild.id}")
         while servers[ctx.guild.id].invasions_check_started:
-            node, new_node = "", ""
-            attackerReward, new_attackerReward = "", ""
-            attacker, new_attacker = "", ""
-            defender, new_defender = "", ""
-            defenderReward, new_defenderReward = "", ""
-            eta = ""
+            hasWeapon = False
+            hasPotato = False
+            hasMutagen = False
+            hasFieldron = False
+            hasDetonite = False
+            hasNav = False
+            found = False
             new = []
-            invasions = await get_all_data("invasions")
-            for invasion in invasions:
-                if not invasion['completed'] and invasion['eta'] != 'Infinityd':
+            response = await get_all_data("invasions")
+            last_planet = ""
+            planet_string = ""
+            invasions = [invasion for invasion in
+                         response if not invasion['completed'] and invasion['eta'] != 'Infinityd']
+            if invasions is not None:
+                for j, invasion in enumerate(invasions):
+                    first_line = ""
+                    end_line = ""
                     new.append(invasion['id'])
-                    node += invasion['node'] + "\n"
-                    attackerReward += invasion['attackerReward']['asString'] + "\n" \
-                        if not invasion['attackingFaction'] == 'Infested' else "N/A \n"
-                    attacker += invasion['attackingFaction'] + "\n"
-                    defender += invasion['defendingFaction'] + "\n"
-                    defenderReward += (invasion['defenderReward']['asString'] + "\n")
-                    eta += invasion['eta'] + "\n"
+                    attackerReward = invasion['attackerReward']['asString']
+                    defenderReward = invasion['defenderReward']['asString']
+                    com = int(invasion['completion'] / 2)
+                    rem = 53 - len(invasion['node'])
+                    rem_sec = 53 - len(attackerReward) - len(defenderReward)
+                    if j != len(invasions) - 1:
+                        next_inv = invasions[j + 1]
+                    same_planet = next_inv['node'].split(" ")[1] != invasion['node'].split(" ")[1]
+
+                    if last_planet != invasion['node'].split(" ")[1]:
+                        start_line = "```ml\n"
+                    else:
+                        start_line = ""
+
+                    for i in range(int(rem / 2)):
+                        first_line += " "
+                    first_line += invasion['node']
+                    for i in range(int(rem / 2)):
+                        first_line += " "
+                    first_line += "\n"
+
+                    second_line = "["
+                    for i in range(int(com)):
+                        second_line += "0"
+                    second_line += " "
+                    for i in range(int(com), 50):
+                        second_line += "O"
+                    second_line += "]\n"
+
+                    third_line = attackerReward
+                    for i in range(rem_sec):
+                        third_line += " "
+                    third_line += defenderReward
+
+                    tmp = "```ml\n" + first_line + second_line + third_line + "```"
+
+                    if same_planet or j == len(invasions) - 1:
+                        end_line = "```"
+
+                    planet_string += start_line + first_line + second_line + third_line + end_line
+
+                    if same_planet or j == len(invasions) - 1:
+                        all_embeds.inv_embed.add_field(name="᲼᲼᲼᲼᲼᲼", value=planet_string, inline=False)
+                        planet_string = ""
 
                     if invasion['id'] not in old:
-                        new_node += invasion['node'] + "\n"
-                        new_attackerReward += invasion['attackerReward']['asString'] + "\n" \
-                            if not invasion['attackingFaction'] == 'Infested' else "N/A \n"
-                        new_attacker += invasion['attackingFaction'] + "\n"
-                        new_defender += invasion['defendingFaction'] + "\n"
-                        new_defenderReward += invasion['defenderReward']['asString'] + "\n"
-            old = new
+                        found = True
+                        all_embeds.new_embed.add_field(name="᲼᲼᲼᲼᲼᲼", value=tmp, inline=False)
+                        if attackerReward.find('Detonite') != -1 or defenderReward.find('Detonite') != -1:
+                            all_embeds.detonite_embed.add_field(name="᲼᲼᲼᲼᲼᲼", value=tmp, inline=False)
+                            hasDetonite = True
+                        if attackerReward.find('Fieldron') != -1 or defenderReward.find('Fieldron') != -1:
+                            all_embeds.fieldron_embed.add_field(name="᲼᲼᲼᲼᲼᲼", value=tmp, inline=False)
+                            hasFieldron = True
+                        if attackerReward.find('Wraith') != -1 or defenderReward.find('Wraith') != -1 or \
+                                attackerReward.find('Vandal') != -1 or defenderReward.find('Vandal') != -1 or \
+                                attackerReward.find('Sheev') != -1 or defenderReward.find('Sheev') != -1:
+                            all_embeds.weapon_embed.add_field(name="᲼᲼᲼᲼᲼᲼", value=tmp, inline=False)
+                            hasWeapon = True
+                        if attackerReward.find('Orokin') != -1 or defenderReward.find('Orokin') != -1:
+                            all_embeds.potato_embed.add_field(name="᲼᲼᲼᲼᲼᲼", value=tmp, inline=False)
+                            hasPotato = True
+                        if attackerReward.find('Mutagen') != -1 or defenderReward.find('Mutagen') != -1:
+                            all_embeds.mutagen_embed.add_field(name="᲼᲼᲼᲼᲼᲼", value=tmp, inline=False)
+                            hasMutagen = True
+                        if defenderReward.find('Nav Coordinate') != -1:
+                            all_embeds.nav_embed.add_field(name="᲼᲼᲼᲼᲼᲼", value=tmp, inline=False)
+                            hasNav = True
 
-            for channel in ctx.guild.channels:
-                if channel.name == "invasions":
-                    correct_channel = channel
+                    last_planet = invasion['node'].split(" ")[1]
+                old = new
+                if message is None:
+                    message = await correct_channel.send(embed=all_embeds.inv_embed)
+                else:
+                    await message.edit(embed=all_embeds.inv_embed)
+                for channel in ctx.guild.channels:
+                    if channel.name == "botspam_private":
+                        correct_channel = channel
 
-            if node != "":
-                fembed = discord.Embed(
-                    title=f'Alle Invasions:\n',
-                    colour=discord.Colour.purple()
-                )
+                print(f"found = {found}")
+                if found:
+                    await whisper_invasion_subscribers(ctx, embed=all_embeds.new_embed)
+                    if hasDetonite:
+                        await whisper_specific_members(ctx, 'detonite', embed=all_embeds.detonite_embed)
+                    if hasFieldron:
+                        await whisper_specific_members(ctx, 'fieldron', embed=all_embeds.fieldron_embed)
+                    if hasMutagen:
+                        await whisper_specific_members(ctx, 'mutagen', embed=all_embeds.mutagen_embed)
+                    if hasPotato:
+                        await whisper_specific_members(ctx, 'potato', embed=all_embeds.potato_embed)
+                    if hasWeapon:
+                        await whisper_specific_members(ctx, 'weapon', embed=all_embeds.weapon_embed)
+                    if hasNav:
+                        await whisper_specific_members(ctx, 'nav', embed=all_embeds.nav_embed)
+                await asyncio.sleep(60)
 
-                fembed.insert_field_at(0, name='Node               ', value=node, inline=True)
-                fembed.insert_field_at(1, name='Attacker Reward           ', value=attackerReward, inline=True)
-                fembed.insert_field_at(2, name='Attacker       ', value=attacker, inline=True)
-                fembed.insert_field_at(3, name='Defender           ', value=defender, inline=True)
-                fembed.insert_field_at(4, name='Defender Reward           ', value=defenderReward, inline=True)
-                await correct_channel.send(embed=fembed)
-                await whisper_invasion_subscribers(ctx, embed=fembed)
-            await asyncio.sleep(60)
-        else:
-            await correct_channel.send("The Invasion Check has been stopped.")
-            print(f"Invasions Check for {ctx.guild.id} has been stopped.")
+                embeds[ctx.guild.id].clear_all()
+                # end for j, invasion in enumerate
+            # end if invasions is not None
+        # end while
+    else:
+        await correct_channel.send("The Invasion Check has been stopped.")
+        print(f"Invasions Check for {ctx.guild.id} has been stopped.")
 
 
 def calculate_remaining_world_duration(data: dict):
@@ -336,8 +412,11 @@ async def fissures(ctx: commands.context):
 async def invasionscheck(ctx: commands.context):
     if ctx.guild.id not in servers:
         servers[ctx.guild.id] = VariablesForChecks()
+    if ctx.guild.id not in embeds:
+        embeds[ctx.guild.id] = InvasionEmbeds()
     servers[ctx.guild.id].invasions_check_started = not servers[ctx.guild.id].invasions_check_started
-    await invasions_check(ctx)
+    if servers[ctx.guild.id]:
+        await invasions_check(ctx)
 
 
 @bot.command(pass_context=True)
@@ -383,31 +462,13 @@ async def toggle(ctx: commands.context, args=""):
                 await ctx.send(f"The role '{args}' has been taken from you.")
 
 
-@bot.command(pass_context=True)
+@bot.command(pass_context=True, aliases=['sub'])
 async def subscribe(ctx: commands.context, args: str = ""):
     guild = ctx.guild.id
     user = ctx.message.author
     role = args.lower()
 
-    if role == 'eidolon':
-        if guild not in nested_eidolon_users:
-            nested_eidolon_users[guild] = {}
-        if user not in nested_eidolon_users[guild]:
-            nested_eidolon_users[guild][user] = user
-            await ctx.channel.send(f"{ctx.message.author} has been added to the subscription list for Eidolons")
-        else:
-            del nested_eidolon_users[guild][user]
-            await ctx.channel.send(f"{ctx.message.author} has been removed from the subscription list for Eidolons")
-    elif role == 'fissures':
-        if guild not in nested_fissure_users:
-            nested_fissure_users[guild] = {}
-        if user not in nested_fissure_users[guild]:
-            nested_fissure_users[guild][user] = user
-            await ctx.channel.send(f"{ctx.message.author} has been added to the subscription list for Fissures")
-        else:
-            del nested_fissure_users[guild][user]
-            await ctx.channel.send(f"{ctx.message.author} has been removed from the subscription list for Fissures")
-    elif role == 'invasions':
+    if role == 'invasions':
         if guild not in nested_invasion_user_generell:
             nested_invasion_user_generell[guild] = {}
             await ctx.channel.send(f"{ctx.message.author} has been added to the subscription list for Invasions")
@@ -419,6 +480,7 @@ async def subscribe(ctx: commands.context, args: str = ""):
     elif role == 'detonite':
         if guild not in nested_invasion_users:
             nested_invasion_users[guild] = {}
+        if 'detonite' not in nested_invasion_users[guild]:
             nested_invasion_users[guild]['detonite'] = {}
         if user not in nested_invasion_users[guild]['detonite']:
             nested_invasion_users[guild]['detonite'][user] = user
@@ -429,16 +491,18 @@ async def subscribe(ctx: commands.context, args: str = ""):
     elif role == 'fieldron':
         if guild not in nested_invasion_users:
             nested_invasion_users[guild] = {}
+        if 'fieldron' not in nested_invasion_users[guild]:
             nested_invasion_users[guild]['fieldron'] = {}
         if user not in nested_invasion_users[guild]['fieldron']:
             nested_invasion_users[guild]['fieldron'][user] = user
             await ctx.channel.send(f"{ctx.message.author} has been added to the subscription list for Fieldron")
         else:
-            del nested_invasion_users[guild]['Fieldron'][user]
+            del nested_invasion_users[guild]['fieldron'][user]
             await ctx.channel.send(f"{ctx.message.author} has been removed from the subscription list for Fieldron")
     elif role == 'mutagen':
         if guild not in nested_invasion_users:
             nested_invasion_users[guild] = {}
+        if 'mutagen' not in nested_invasion_users[guild]:
             nested_invasion_users[guild]['mutagen'] = {}
         if user not in nested_invasion_users[guild]['mutagen']:
             nested_invasion_users[guild]['mutagen'][user] = user
@@ -449,14 +513,16 @@ async def subscribe(ctx: commands.context, args: str = ""):
     elif role == 'weapon':
         if guild not in nested_invasion_users:
             nested_invasion_users[guild] = {}
+        if 'weapon' not in nested_invasion_users[guild]:
             nested_invasion_users[guild]['weapon'] = {}
         if user not in nested_invasion_users[guild]['weapon']:
             nested_invasion_users[guild]['weapon'][user] = user
         else:
-            del nested_invasion_users[guild]['Weapon'][user]
+            del nested_invasion_users[guild]['weapon'][user]
     elif role == 'potato':
         if guild not in nested_invasion_users:
             nested_invasion_users[guild] = {}
+        if 'potato' not in nested_invasion_users[guild]:
             nested_invasion_users[guild]['potato'] = {}
         if user not in nested_invasion_users[guild]['potato']:
             nested_invasion_users[guild]['potato'][user] = user
