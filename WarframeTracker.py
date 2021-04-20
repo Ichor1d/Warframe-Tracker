@@ -43,6 +43,7 @@ class VariablesForChecks:
         self.eidolon_check_started = False
         self.invasions_check_started = False
 
+
 class InvasionEmbeds:
     def __init__(self):
         self.inv_embed = discord.Embed()
@@ -67,13 +68,12 @@ class InvasionEmbeds:
 
 async def whisper_invasion_subscribers(ctx: commands.context, message: str = "", embed: discord.embeds = None):
     guild = ctx.guild.id
-    if guild in nested_invasion_users:
-        for member in nested_invasion_users[guild]:
-            if not member.bot:
-                if embed is None:
-                    await member.send(message)
-                elif message is "":
-                    await member.send(embed=embed)
+    if guild in nested_invasion_user_generell:
+        for member in nested_invasion_user_generell[guild]:
+            if embed is None:
+                await member.send(message)
+            elif message is "":
+                await member.send(embed=embed)
     pass
 
 
@@ -94,10 +94,8 @@ async def whisper_specific_members(ctx: commands.context, role: str, message="",
     if guild in nested_invasion_users:
         if role in nested_invasion_users[guild]:
             for member in nested_invasion_users[guild][role]:
-                if embed is None:
-                    await member.send(message)
-                elif message is "":
-                    await member.send(embed=embed)
+                await member.send(f"Wegen der Subscribe Rolle {role}.", embed=embed)
+                print(f"neue Risse für {role}")
 
 
 async def create_fissure_embed(ctx: commands.context, tier: str, node: str, mission: str):
@@ -134,21 +132,29 @@ async def eidolon_check(ctx: commands.context):
         isDay = wd['isDay']
         h, m, s = calculate_remaining_world_duration(wd)
         timeRemaining = ((h * 60) + m) * 60 + s
+        if timeRemaining > 300 and isDay:
+            timeRemaining -= 300
 
         await channel.send("Starting eidolon check.")
         while servers[ctx.ctx.guild.id].eidolon_check_started:
             if isDay:
                 isDay = False
-                print(f"Warten für {timeRemaining}, weil Tag ist.")
                 await asyncio.sleep(timeRemaining)
-                timeRemaining = 3000
+                if timeRemaining >= 300:
+                    await channel.send(f"Brace yourself. Night is coming! (in 5 minutes)")
+                    await whisper_specific_members(ctx, "Eidolon", f"Brace yourself. Night is coming! (in 5 minutes)")
+                    await asyncio.sleep(300)
+                timeRemaining = 2700
             elif not isDay:
                 isDay = True
                 await channel.send(f"Es ist Nacht! Zeit für die Eidolon Jagd.")
                 await whisper_specific_members(ctx, "Eidolon", "Es ist Nacht! Zeit für die Eidolon Jagd!")
-                print(f"Warten für {timeRemaining}, weil Nacht ist.")
                 await asyncio.sleep(timeRemaining)
-                timeRemaining = 6000
+                if timeRemaining >= 300:
+                    await channel.send("Dawn is near! (in 5 minutes)")
+                    await whisper_specific_members(ctx, "Eidolon", f"Dawn is near! (in 5 minutes)")
+                    await asyncio.sleep(300)
+                timeRemaining = 5700
 
 
 async def fissure_check(ctx: commands.context):
@@ -211,9 +217,9 @@ async def invasions_check(ctx: commands.context):
             response = await get_all_data("invasions")
             last_planet = ""
             planet_string = ""
-            invasions = [invasion for invasion in
-                         response if not invasion['completed'] and invasion['eta'] != 'Infinityd']
-            if invasions is not None:
+            if response is not None:
+                invasions = [invasion for invasion in
+                             response if not invasion['completed'] and invasion['eta'] != 'Infinityd']
                 for j, invasion in enumerate(invasions):
                     first_line = ""
                     end_line = ""
@@ -256,35 +262,37 @@ async def invasions_check(ctx: commands.context):
 
                     if same_planet or j == len(invasions) - 1:
                         end_line = "```"
+                    else:
+                        end_line = "\n"
 
                     planet_string += start_line + first_line + second_line + third_line + end_line
 
                     if same_planet or j == len(invasions) - 1:
-                        all_embeds.inv_embed.add_field(name="᲼᲼᲼᲼᲼᲼", value=planet_string, inline=False)
+                        all_embeds.inv_embed.add_field(name=" \u200b", value=planet_string, inline=False)
                         planet_string = ""
 
                     if invasion['id'] not in old:
                         found = True
-                        all_embeds.new_embed.add_field(name="᲼᲼᲼᲼᲼᲼", value=tmp, inline=False)
+                        all_embeds.new_embed.add_field(name="\u200b", value=tmp, inline=False)
                         if attackerReward.find('Detonite') != -1 or defenderReward.find('Detonite') != -1:
-                            all_embeds.detonite_embed.add_field(name="᲼᲼᲼᲼᲼᲼", value=tmp, inline=False)
+                            all_embeds.detonite_embed.add_field(name="\u200b", value=tmp, inline=False)
                             hasDetonite = True
                         if attackerReward.find('Fieldron') != -1 or defenderReward.find('Fieldron') != -1:
-                            all_embeds.fieldron_embed.add_field(name="᲼᲼᲼᲼᲼᲼", value=tmp, inline=False)
+                            all_embeds.fieldron_embed.add_field(name="\u200b", value=tmp, inline=False)
                             hasFieldron = True
                         if attackerReward.find('Wraith') != -1 or defenderReward.find('Wraith') != -1 or \
                                 attackerReward.find('Vandal') != -1 or defenderReward.find('Vandal') != -1 or \
                                 attackerReward.find('Sheev') != -1 or defenderReward.find('Sheev') != -1:
-                            all_embeds.weapon_embed.add_field(name="᲼᲼᲼᲼᲼᲼", value=tmp, inline=False)
+                            all_embeds.weapon_embed.add_field(name="\u200b", value=tmp, inline=False)
                             hasWeapon = True
                         if attackerReward.find('Orokin') != -1 or defenderReward.find('Orokin') != -1:
-                            all_embeds.potato_embed.add_field(name="᲼᲼᲼᲼᲼᲼", value=tmp, inline=False)
+                            all_embeds.potato_embed.add_field(name="\u200b", value=tmp, inline=False)
                             hasPotato = True
                         if attackerReward.find('Mutagen') != -1 or defenderReward.find('Mutagen') != -1:
-                            all_embeds.mutagen_embed.add_field(name="᲼᲼᲼᲼᲼᲼", value=tmp, inline=False)
+                            all_embeds.mutagen_embed.add_field(name=" \u200b", value=tmp, inline=False)
                             hasMutagen = True
                         if defenderReward.find('Nav Coordinate') != -1:
-                            all_embeds.nav_embed.add_field(name="᲼᲼᲼᲼᲼᲼", value=tmp, inline=False)
+                            all_embeds.nav_embed.add_field(name="\u200b", value=tmp, inline=False)
                             hasNav = True
 
                     last_planet = invasion['node'].split(" ")[1]
@@ -297,21 +305,20 @@ async def invasions_check(ctx: commands.context):
                     if channel.name == "botspam_private":
                         correct_channel = channel
 
-                print(f"found = {found}")
                 if found:
                     await whisper_invasion_subscribers(ctx, embed=all_embeds.new_embed)
                     if hasDetonite:
-                        await whisper_specific_members(ctx, 'detonite', embed=all_embeds.detonite_embed)
+                        await whisper_specific_members(ctx, role='detonite', embed=all_embeds.detonite_embed)
                     if hasFieldron:
-                        await whisper_specific_members(ctx, 'fieldron', embed=all_embeds.fieldron_embed)
+                        await whisper_specific_members(ctx, role='fieldron', embed=all_embeds.fieldron_embed)
                     if hasMutagen:
-                        await whisper_specific_members(ctx, 'mutagen', embed=all_embeds.mutagen_embed)
+                        await whisper_specific_members(ctx, role='mutagen', embed=all_embeds.mutagen_embed)
                     if hasPotato:
-                        await whisper_specific_members(ctx, 'potato', embed=all_embeds.potato_embed)
+                        await whisper_specific_members(ctx, role='potato', embed=all_embeds.potato_embed)
                     if hasWeapon:
-                        await whisper_specific_members(ctx, 'weapon', embed=all_embeds.weapon_embed)
+                        await whisper_specific_members(ctx, role='weapon', embed=all_embeds.weapon_embed)
                     if hasNav:
-                        await whisper_specific_members(ctx, 'nav', embed=all_embeds.nav_embed)
+                        await whisper_specific_members(ctx, role='nav', embed=all_embeds.nav_embed)
                 await asyncio.sleep(60)
 
                 embeds[ctx.guild.id].clear_all()
@@ -377,6 +384,46 @@ async def sortie(ctx: commands.context):
     fembed.add_field(name='Mission Type       ', value=mission, inline=True)
     fembed.add_field(name='Node               ', value=node, inline=True)
     fembed.add_field(name='Modifier           ', value=modifier, inline=True)
+    await ctx.send(embed=fembed)
+
+
+@bot.command(pass_context=True)
+async def steelpath(ctx):
+    steel = await get_all_data(f"steelPath")
+    rewards = ""
+    costs = ""
+
+    for reward in steel['rotation']:
+        rewards += reward['name'] + "\n"
+        costs += str(reward['cost']) + "\n"
+
+    fembed = discord.Embed(
+        title="Steel Path Honors",
+        colour=discord.Colour.random()
+    )
+
+    fembed.add_field(name='current', value=steel['currentReward']['name'], inline=True)
+    fembed.add_field(name='Cost', value=steel['currentReward']['cost'], inline=True)
+    fembed.add_field(name="\u200b", value="\u200b", inline=True)
+    fembed.add_field(name="\u200b", value="\u200b", inline=True)
+    fembed.add_field(name="\u200b", value="\u200b", inline=True)
+    fembed.add_field(name="\u200b", value="\u200b", inline=True)
+    fembed.add_field(name='Rotation', value=rewards, inline=True)
+    fembed.add_field(name='Cost', value=costs, inline=True)
+    fembed.add_field(name="\u200b", value="\u200b", inline=True)
+    await ctx.send(embed=fembed)
+
+
+# TODO: FIX, WHILE BARO ACTIVE! TEMPORARY NOT ALL REQUIERED FUNCTIONS TESTABLE!!
+@bot.command(pass_context=True)
+async def baro(ctx):
+    kiteer = await get_all_data(f"voidTrader")
+    fembed = discord.Embed(
+        title="Baro Ki'Teer",
+        colour=discord.Colour.green()
+    )
+
+    fembed.add_field(name='Time until Arrival', value=kiteer['startString'], inline=True)
     await ctx.send(embed=fembed)
 
 
@@ -484,7 +531,7 @@ async def subscribe(ctx: commands.context, args: str = ""):
             nested_invasion_users[guild]['detonite'] = {}
         if user not in nested_invasion_users[guild]['detonite']:
             nested_invasion_users[guild]['detonite'][user] = user
-            await ctx.channel.send(f"{ctx.message.author} has been added to the subscription list for Detonite")
+            await ctx.channel.send(f"{user} has been added to the subscription list for Detonite")
         else:
             del nested_invasion_users[guild]['detonite'][user]
             await ctx.channel.send(f"{ctx.message.author} has been removed from the subscription list for Detonite")
